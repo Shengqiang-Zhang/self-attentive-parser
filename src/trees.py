@@ -1,8 +1,10 @@
 import collections.abc
 import gzip
 
+
 class TreebankNode(object):
     pass
+
 
 class InternalTreebankNode(TreebankNode):
     def __init__(self, label, children):
@@ -38,6 +40,7 @@ class InternalTreebankNode(TreebankNode):
 
         return InternalParseNode(tuple(sublabels), children, nocache=nocache)
 
+
 class LeafTreebankNode(TreebankNode):
     def __init__(self, tag, word):
         assert isinstance(tag, str)
@@ -55,8 +58,10 @@ class LeafTreebankNode(TreebankNode):
     def convert(self, index=0):
         return LeafParseNode(index, self.tag, self.word)
 
+
 class ParseNode(object):
     pass
+
 
 class InternalParseNode(ParseNode):
     def __init__(self, label, children, nocache=False):
@@ -112,6 +117,7 @@ class InternalParseNode(ParseNode):
             if left < child.left < right
         ]
 
+
 class LeafParseNode(ParseNode):
     def __init__(self, index, tag, word):
         assert isinstance(index, int)
@@ -130,6 +136,7 @@ class LeafParseNode(ParseNode):
 
     def convert(self):
         return LeafTreebankNode(self.tag, self.word)
+
 
 def load_trees(path, strip_top=True, strip_spmrl_features=True):
     with open(path) as infile:
@@ -192,6 +199,7 @@ def load_trees(path, strip_top=True, strip_spmrl_features=True):
 
     return trees
 
+
 def load_silver_trees_single(path):
     with gzip.open(path, mode='rt') as f:
         linenum = 0
@@ -238,6 +246,7 @@ def load_silver_trees_single(path):
             tree = tree.children[0]
 
             yield tree
+
 
 def load_silver_trees(path, batch_size):
     batch = []

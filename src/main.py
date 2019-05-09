@@ -13,13 +13,16 @@ import trees
 import vocabulary
 import nkutil
 import parse_nk
+
 tokens = parse_nk
+
 
 def torch_load(load_path):
     if parse_nk.use_cuda:
         return torch.load(load_path)
     else:
         return torch.load(load_path, map_location=lambda storage, location: storage)
+
 
 def format_elapsed(start_time):
     elapsed_time = int(time.time() - start_time)
@@ -31,20 +34,21 @@ def format_elapsed(start_time):
         elapsed_string = "{}d{}".format(days, elapsed_string)
     return elapsed_string
 
+
 def make_hparams():
     return nkutil.HParams(
-        max_len_train=0, # no length limit
-        max_len_dev=0, # no length limit
+        max_len_train=0,  # no length limit
+        max_len_dev=0,  # no length limit
 
         sentence_max_len=300,
 
         learning_rate=0.0008,
         learning_rate_warmup_steps=160,
-        clip_grad_norm=0., #no clipping
-        step_decay=True, # note that disabling step decay is not implemented
+        clip_grad_norm=0.,  # no clipping
+        step_decay=True,  # note that disabling step decay is not implemented
         step_decay_factor=0.5,
         step_decay_patience=5,
-        max_consecutive_decays=3, # establishes a termination criterion
+        max_consecutive_decays=3,  # establishes a termination criterion
 
         partitioned=True,
         num_layers_position_only=0,
@@ -71,19 +75,20 @@ def make_hparams():
         use_bert_only=False,
         predict_tags=False,
 
-        d_char_emb=32, # A larger value may be better for use_chars_lstm
+        d_char_emb=32,  # A larger value may be better for use_chars_lstm
 
         tag_emb_dropout=0.2,
         word_emb_dropout=0.4,
         morpho_emb_dropout=0.2,
         timing_dropout=0.0,
         char_lstm_input_dropout=0.2,
-        elmo_dropout=0.5, # Note that this semi-stacks with morpho_emb_dropout!
+        elmo_dropout=0.5,  # Note that this semi-stacks with morpho_emb_dropout!
 
         bert_model="bert-base-uncased",
         bert_do_lower_case=True,
         bert_transliterate="",
-        )
+    )
+
 
 def run_train(args, hparams):
     if args.numpy_seed is not None:
@@ -227,6 +232,7 @@ def run_train(args, hparams):
         patience=hparams.step_decay_patience,
         verbose=True,
     )
+
     def schedule_lr(iteration):
         iteration = iteration + 1
         if iteration <= hparams.learning_rate_warmup_steps:
@@ -254,7 +260,7 @@ def run_train(args, hparams):
 
         dev_predicted = []
         for dev_start_index in range(0, len(dev_treebank), args.eval_batch_size):
-            subbatch_trees = dev_treebank[dev_start_index:dev_start_index+args.eval_batch_size]
+            subbatch_trees = dev_treebank[dev_start_index:dev_start_index + args.eval_batch_size]
             subbatch_sentences = [[(leaf.tag, leaf.word) for leaf in tree.leaves()] for tree in subbatch_trees]
             predicted, _ = parser.parse_batch(subbatch_sentences)
             del _
@@ -289,8 +295,8 @@ def run_train(args, hparams):
             torch.save({
                 'spec': parser.spec,
                 'state_dict': parser.state_dict(),
-                'trainer' : trainer.state_dict(),
-                }, best_dev_model_path + ".pt")
+                'trainer': trainer.state_dict(),
+            }, best_dev_model_path + ".pt")
 
     for epoch in itertools.count(start=1):
         if args.epochs is not None and epoch > args.epochs:
@@ -304,12 +310,13 @@ def run_train(args, hparams):
             schedule_lr(total_processed // args.batch_size)
 
             batch_loss_value = 0.0
-            batch_trees = train_parse[start_index:start_index + args.batch_size]
+            batch_trees = train_parse[start_index: start_index + args.batch_size]
             batch_sentences = [[(leaf.tag, leaf.word) for leaf in tree.leaves()] for tree in batch_trees]
             batch_num_tokens = sum(len(sentence) for sentence in batch_sentences)
 
-            for subbatch_sentences, subbatch_trees in parser.split_batch(batch_sentences, batch_trees, args.subbatch_max_tokens):
-                _, loss = parser.parse_batch(subbatch_sentences, subbatch_trees)
+            for subbatch_sentences, subbatch_trees in parser.split_batch(batch_sentences, batch_trees,
+                                                                         args.subbatch_max_tokens):
+                _, loss = parser.parse_batch(subbatch_sentences, subbatch_trees)  # _是predicted
 
                 if hparams.predict_tags:
                     loss = loss[0] / len(batch_trees) + loss[1] / batch_num_tokens
@@ -353,9 +360,11 @@ def run_train(args, hparams):
         # adjust learning rate at the end of an epoch
         if (total_processed // args.batch_size + 1) > hparams.learning_rate_warmup_steps:
             scheduler.step(best_dev_fscore)
-            if (total_processed - best_dev_processed) > ((hparams.step_decay_patience + 1) * hparams.max_consecutive_decays * len(train_parse)):
+            if (total_processed - best_dev_processed) > (
+                    (hparams.step_decay_patience + 1) * hparams.max_consecutive_decays * len(train_parse)):
                 print("Terminating due to lack of improvement in dev fscore.")
                 break
+
 
 def run_test(args):
     print("Loading test trees from {}...".format(args.test_path))
@@ -374,9 +383,9 @@ def run_test(args):
 
     test_predicted = []
     for start_index in range(0, len(test_treebank), args.eval_batch_size):
-        subbatch_trees = test_treebank[start_index:start_index+args.eval_batch_size]
+        subbatch_trees = test_treebank[start_index:start_index + args.eval_batch_size]
         subbatch_sentences = [[(leaf.tag, leaf.word) for leaf in tree.leaves()] for tree in subbatch_trees]
-        predicted, _ = parser.parse_batch(subbatch_sentences)
+        predicted, _ = parser.parse_batch(subbatch_sentences)  # _是loss
         del _
         test_predicted.extend([p.convert() for p in predicted])
 
@@ -403,7 +412,8 @@ def run_test(args):
         )
     )
 
-#%%
+
+# %%
 def run_ensemble(args):
     print("Loading test trees from {}...".format(args.test_path))
     test_treebank = trees.load_trees(args.test_path)
@@ -433,7 +443,7 @@ def run_ensemble(args):
     # We did not observe any benefits to doing weighted averaging, probably
     # because all our parsers output label scores of around the same magnitude
     for start_index in range(0, len(test_treebank), args.eval_batch_size):
-        subbatch_trees = test_treebank[start_index:start_index+args.eval_batch_size]
+        subbatch_trees = test_treebank[start_index:start_index + args.eval_batch_size]
         subbatch_sentences = [[(leaf.tag, leaf.word) for leaf in tree.leaves()] for tree in subbatch_trees]
 
         chart_lists = []
@@ -441,6 +451,7 @@ def run_ensemble(args):
             charts = parser.parse_batch(subbatch_sentences, return_label_scores_charts=True)
             chart_lists.append(charts)
 
+        # todo: 对各parser的结果如何做ensemble的？
         subbatch_charts = [np.mean(list(sentence_charts), 0) for sentence_charts in zip(*chart_lists)]
         predicted, _ = parsers[0].decode_from_chart_batch(subbatch_sentences, subbatch_charts)
         del _
@@ -456,7 +467,8 @@ def run_ensemble(args):
         )
     )
 
-#%%
+
+# %%
 
 def run_parse(args):
     if args.output_path != '-' and os.path.exists(args.output_path):
@@ -485,7 +497,7 @@ def run_parse(args):
 
     all_predicted = []
     for start_index in range(0, len(sentences), args.eval_batch_size):
-        subbatch_sentences = sentences[start_index:start_index+args.eval_batch_size]
+        subbatch_sentences = sentences[start_index:start_index + args.eval_batch_size]
 
         subbatch_sentences = [[(dummy_tag, word) for word in sentence] for sentence in subbatch_sentences]
         predicted, _ = parser.parse_batch(subbatch_sentences)
@@ -502,7 +514,8 @@ def run_parse(args):
                 output_file.write("{}\n".format(tree.linearize()))
         print("Output written to:", args.output_path)
 
-#%%
+
+# %%
 def run_viz(args):
     assert args.model_path_base.endswith(".pt"), "Only pytorch savefiles supported"
 
@@ -521,6 +534,7 @@ def run_viz(args):
 
     stowed_values = {}
     orig_multihead_forward = parse_nk.MultiHeadAttention.forward
+
     def wrapped_multihead_forward(self, inp, batch_idxs, **kwargs):
         res, attns = orig_multihead_forward(self, inp, batch_idxs, **kwargs)
         stowed_values[f'attns{stowed_values["stack"]}'] = attns.cpu().data.numpy()
@@ -538,7 +552,7 @@ def run_viz(args):
     print("Parsing viz sentences...")
 
     for start_index in range(0, len(viz_treebank), args.eval_batch_size):
-        subbatch_trees = viz_treebank[start_index:start_index+args.eval_batch_size]
+        subbatch_trees = viz_treebank[start_index:start_index + args.eval_batch_size]
         subbatch_sentences = [[(leaf.tag, leaf.word) for leaf in tree.leaves()] for tree in subbatch_trees]
         stowed_values = dict(stack=0)
         predicted, _ = parser.parse_batch(subbatch_sentences)
@@ -606,6 +620,7 @@ def main():
 
     args = parser.parse_args()
     args.callback(args)
+
 
 # %%
 if __name__ == "__main__":
